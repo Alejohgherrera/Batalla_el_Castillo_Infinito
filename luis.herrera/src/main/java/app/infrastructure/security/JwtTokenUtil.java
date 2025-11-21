@@ -1,57 +1,53 @@
 package app.infrastructure.security;
 
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.impl.crypto.MacProvider;
 import java.security.Key;
 import java.util.Date;
+import org.springframework.stereotype.Component;
 
 @Component
 public class JwtTokenUtil {
 
-    @Value("${jwt.secret}")
-    private String jwtSecret;
+    // Clave secreta para HMAC (HS256)
+    private static final Key SECRET_KEY = MacProvider.generateKey(SignatureAlgorithm.HS256);
 
-    @Value("${jwt.expiration-ms}")
-    private long jwtExpirationMs;
+    private static final long EXPIRATION_TIME = 1000 * 60 * 60; // 1 hora
 
-    private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes());
-    }
-
-    // Genera un token a partir de un username
-    public String generateToken(String username) {
+    // Generar token
+    public String generateJwtToken(String username) {
         return Jwts.builder()
                 .setSubject(username)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
                 .compact();
     }
 
-    // Obtiene el username desde el token
-    public String getUsernameFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getSubject();
-    }
-
-    // Valida el token
+    // Validar token
     public boolean validateJwtToken(String token) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
-                    .build()
-                    .parseClaimsJws(token);
+            Jwts.parser()
+                .setSigningKey(SECRET_KEY)
+                .parseClaimsJws(token);
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            // token inválido
+        } catch (Exception e) {
+            return false;
         }
-        return false;
+    }
+
+    // Obtener username desde token
+    public String getUsernameFromToken(String token) {
+        Claims claims = Jwts.parser()
+                .setSigningKey(SECRET_KEY)
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.getSubject();
+    }
+
+    public String getUserNameFromJwtToken(String token) {
+        throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
     }
 }
